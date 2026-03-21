@@ -18,24 +18,25 @@ document.getElementById('themeBtn').textContent = state.theme === 'dark' ? 'â˜€ï
 function fmtTime(ts) {
   const d = new Date(ts);
   // Convert to UTC+8
-  const utc8 = new Date(d.getTime() + (8 * 3600000));
+  const utc8Time = d.getTime() + (8 * 3600000);
+  const utc8 = new Date(utc8Time);
   return utc8.getUTCHours().toString().padStart(2,'0') + ':' + utc8.getUTCMinutes().toString().padStart(2,'0');
 }
 function fmtSep(ts) {
   const now = new Date();
   const d = new Date(ts);
   // Convert to UTC+8
-  const utc8 = new Date(d.getTime() + (8 * 3600000));
-  const utc8Now = new Date(now.getTime() + (8 * 3600000));
-  const todayStart = Date.UTC(utc8Now.getUTCFullYear(), utc8Now.getUTCMonth(), utc8Now.getUTCDate()).getTime();
+  const utc8Time = d.getTime() + (8 * 3600000);
+  const utc8NowTime = now.getTime() + (8 * 3600000);
+  const todayStart = Date.UTC(new Date(utc8NowTime).getUTCFullYear(), new Date(utc8NowTime).getUTCMonth(), new Date(utc8NowTime).getUTCDate()).getTime();
   const yestStart  = todayStart - 86400000;
-  const ts8 = utc8.getTime();
-  if (ts8 >= todayStart)  return 'Today '     + fmtTime(ts);
-  if (ts8 >= yestStart)   return 'Yesterday ' + fmtTime(ts);
+  if (utc8Time >= todayStart)  return 'Today '     + fmtTime(ts);
+  if (utc8Time >= yestStart)   return 'Yesterday ' + fmtTime(ts);
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const utc8Now = new Date(utc8NowTime);
   const weekStart = todayStart - utc8Now.getUTCDay() * 86400000;
-  if (ts8 >= weekStart)   return days[utc8.getUTCDay()] + ' ' + fmtTime(ts);
-  return utc8.toLocaleDateString('en-US', { timeZone: 'UTC' }) + ' ' + fmtTime(ts);
+  if (utc8Time >= weekStart)   return days[utc8Now.getUTCDay()] + ' ' + fmtTime(ts);
+  return new Date(utc8Time).toLocaleDateString('en-US', { timeZone: 'UTC' }) + ' ' + fmtTime(ts);
 }
 function needsSep(msgs, idx) {
   if (idx === 0) return true;
