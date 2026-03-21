@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  webchat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webchat
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SESSION_SECRET=${SESSION_SECRET:-webchat-secret-change-this}
+    volumes:
+      # Persist database
+      - webchat-data:/app/data
+      # Persist uploaded files
+      - webchat-uploads:/app/backend/uploads
+      # Optional: mount .env file
+      # - ./.env:/app/.env:ro
+    networks:
+      - webchat-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/auth/me', (r) => process.exit(r.statusCode === 401 ? 0 : 1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Nginx reverse proxy
+  # Uncomment if you want to use Nginx within Docker
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: webchat-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - webchat
+  #   networks:
+  #     - webchat-network
+
+volumes:
+  webchat-data:
+    driver: local
+  webchat-uploads:
+    driver: local
+
+networks:
+  webchat-network:
+    driver: bridge

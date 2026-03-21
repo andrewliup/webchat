@@ -1,0 +1,40 @@
+[Unit]
+Description=WebChat Application
+Documentation=https://github.com/yourusername/WebChat
+After=network.target
+
+[Service]
+Type=exec
+User=webchat
+Group=webchat
+WorkingDirectory=/var/www/webchat
+
+# Environment file
+EnvironmentFile=/etc/webchat/.env
+
+# Main process
+ExecStart=/usr/bin/node backend/server.js
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Process management
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/webchat/backend/uploads /var/www/webchat/data
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=webchat
+
+[Install]
+WantedBy=multi-user.target
