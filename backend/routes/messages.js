@@ -54,16 +54,15 @@ router.get('/messages', requireAuth, (req, res) => {
 
   const rows = all(sql, params).reverse();
   
-  // Convert datetime strings (UTC+8) to timestamps
-  // The stored datetime is already UTC+8, parse it directly
+  // Convert UTC datetime strings to UTC+8 timestamps for display
   rows.forEach(m => {
     if (m.sent_at && typeof m.sent_at === 'string') {
-      // Parse as UTC+8 without adding offset
+      // Parse UTC time and add 8 hours offset
       const [date, time] = m.sent_at.split(' ');
       const [year, month, day] = date.split('-').map(Number);
       const [hour, min, sec] = time.split(':').map(Number);
-      // Create date in UTC+8 (which is Asia/Shanghai time)
-      m.sent_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() - (8 * 3600000);
+      // Create UTC date, then add 8 hours (8 * 3600000 ms)
+      m.sent_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
     }
   });
 
@@ -93,12 +92,12 @@ router.post('/messages', requireAuth, (req, res) => {
 
   const msg = get('SELECT * FROM messages WHERE id = ?', [newId]);
   
-  // Convert datetime (UTC+8) to timestamp
+  // Convert UTC datetime to UTC+8 timestamp for display
   if (msg.sent_at && typeof msg.sent_at === 'string') {
     const [date, time] = msg.sent_at.split(' ');
     const [year, month, day] = date.split('-').map(Number);
     const [hour, min, sec] = time.split(':').map(Number);
-    msg.sent_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() - (8 * 3600000);
+    msg.sent_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
   }
 
   const io = req.app.get('io');
@@ -123,14 +122,15 @@ router.put('/messages/:id', requireAuth, (req, res) => {
         const [date, time] = msg.sent_at.split(' ');
         const [year, month, day] = date.split('-').map(Number);
         const [hour, min, sec] = time.split(':').map(Number);
-        return new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() - (8 * 3600000);
+        // Convert UTC to UTC+8 timestamp for age calculation
+        return new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
       })()
     : msg.sent_at;
   const age = Date.now() - sentAt;
   if (age > 10 * 60 * 1000) return res.status(400).json({ error: 'Edit window expired (10 min)' });
 
   run(
-    `UPDATE messages SET content = ?, edited_at = datetime('now', 'localtime', '+8 hours') WHERE id = ?`,
+    `UPDATE messages SET content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [content, id]
   );
 
@@ -139,7 +139,7 @@ router.put('/messages/:id', requireAuth, (req, res) => {
     const [date, time] = updated.edited_at.split(' ');
     const [year, month, day] = date.split('-').map(Number);
     const [hour, min, sec] = time.split(':').map(Number);
-    updated.edited_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() - (8 * 3600000);
+    updated.edited_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
   }
   req.app.get('io').emit('message_updated', updated);
   res.json({ message: updated });
@@ -160,7 +160,8 @@ router.delete('/messages/:id', requireAuth, (req, res) => {
         const [date, time] = msg.sent_at.split(' ');
         const [year, month, day] = date.split('-').map(Number);
         const [hour, min, sec] = time.split(':').map(Number);
-        return new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() - (8 * 3600000);
+        // Convert UTC to UTC+8 timestamp for age calculation
+        return new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
       })()
     : msg.sent_at;
   if (action === 'recall') {
@@ -179,7 +180,7 @@ router.delete('/messages/:id', requireAuth, (req, res) => {
 router.post('/messages/clear', requireAuth, (req, res) => {
   const userId = req.session.userId;
   run(
-    `INSERT OR REPLACE INTO user_clear_history (user_id, cleared_at) VALUES (?, datetime('now', 'localtime', '+8 hours'))`,
+    `INSERT OR REPLACE INTO user_clear_history (user_id, cleared_at) VALUES (?, CURRENT_TIMESTAMP)`,
     [userId]
   );
   res.json({ ok: true });
