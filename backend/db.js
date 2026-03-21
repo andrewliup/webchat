@@ -27,13 +27,16 @@ function persist() {
 }
 
 function runMigrations() {
+  // Set timezone to UTC+8
+  db.run(`PRAGMA timezone = 480`); // 480 minutes = 8 hours
+
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       email        TEXT UNIQUE NOT NULL,
       nickname     TEXT NOT NULL,
       avatar_color TEXT DEFAULT '#00a884',
-      created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at   DATETIME DEFAULT (datetime('now', 'localtime', '+8 hours'))
     )
   `);
 
@@ -45,7 +48,7 @@ function runMigrations() {
       type        TEXT DEFAULT 'text',
       media_url   TEXT,
       duration    INTEGER,
-      sent_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      sent_at     DATETIME DEFAULT (datetime('now', 'localtime', '+8 hours')),
       edited_at   DATETIME,
       is_deleted  INTEGER DEFAULT 0,
       is_recalled INTEGER DEFAULT 0,
@@ -59,7 +62,7 @@ function runMigrations() {
     CREATE TABLE IF NOT EXISTS read_receipts (
       user_id    INTEGER NOT NULL,
       message_id INTEGER NOT NULL,
-      read_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      read_at    DATETIME DEFAULT (datetime('now', 'localtime', '+8 hours')),
       PRIMARY KEY (user_id, message_id)
     )
   `);
@@ -67,7 +70,7 @@ function runMigrations() {
   db.run(`
     CREATE TABLE IF NOT EXISTS user_clear_history (
       user_id    INTEGER NOT NULL PRIMARY KEY,
-      cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      cleared_at DATETIME DEFAULT (datetime('now', 'localtime', '+8 hours'))
     )
   `);
 
@@ -80,7 +83,7 @@ function runMigrations() {
     CREATE TABLE IF NOT EXISTS rooms (
       passcode   TEXT PRIMARY KEY,
       name       TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT (datetime('now', 'localtime', '+8 hours'))
     )
   `);
 

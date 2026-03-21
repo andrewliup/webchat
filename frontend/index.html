@@ -292,9 +292,9 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
     <button class="ctx-item" id="ctxClear"><span class="ctx-icon">🧹</span><span class="ctx-label">Clear</span></button>
   </div>
 
-  <input type="file" id="imageInput" accept="image/*" style="display:none">
-  <input type="file" id="videoInput" accept="video/*" style="display:none">
-  <input type="file" id="avatarInput" accept="image/*" style="display:none">
+  <input type="file" id="imageInput" accept="image/*" capture="environment" style="display:none">
+  <input type="file" id="videoInput" accept="video/*" capture="environment" style="display:none">
+  <input type="file" id="avatarInput" accept="image/*" capture="user" style="display:none">
 
   <!-- PROFILE PANEL -->
   <div class="profile-overlay" id="profileOverlay">

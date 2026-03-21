@@ -53,6 +53,13 @@ router.get('/messages', requireAuth, (req, res) => {
   params.push(limit);
 
   const rows = all(sql, params).reverse();
+  
+  // Convert datetime strings to timestamps (UTC+8)
+  rows.forEach(m => {
+    if (m.sent_at && typeof m.sent_at === 'string') {
+      m.sent_at = new Date(m.sent_at + '+08:00').getTime();
+    }
+  });
 
   // Attach last read message id for current user
   const lastRead = get(
@@ -79,6 +86,11 @@ router.post('/messages', requireAuth, (req, res) => {
   );
 
   const msg = get('SELECT * FROM messages WHERE id = ?', [newId]);
+  
+  // Convert datetime to timestamp
+  if (msg.sent_at && typeof msg.sent_at === 'string') {
+    msg.sent_at = new Date(msg.sent_at + '+08:00').getTime();
+  }
 
   const io = req.app.get('io');
   io.emit('new_message', msg);
@@ -97,15 +109,19 @@ router.put('/messages/:id', requireAuth, (req, res) => {
   if (msg.sender_id !== userId) return res.status(403).json({ error: 'Forbidden' });
   if (msg.is_recalled) return res.status(400).json({ error: 'Cannot edit recalled message' });
 
-  const age = Date.now() - new Date(msg.sent_at).getTime();
+  const sentAt = typeof msg.sent_at === 'string' ? new Date(msg.sent_at + '+08:00').getTime() : msg.sent_at;
+  const age = Date.now() - sentAt;
   if (age > 10 * 60 * 1000) return res.status(400).json({ error: 'Edit window expired (10 min)' });
 
   run(
-    `UPDATE messages SET content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    `UPDATE messages SET content = ?, edited_at = datetime('now', 'localtime', '+8 hours') WHERE id = ?`,
     [content, id]
   );
 
   const updated = get('SELECT * FROM messages WHERE id = ?', [id]);
+  if (updated && updated.edited_at && typeof updated.edited_at === 'string') {
+    updated.edited_at = new Date(updated.edited_at + '+08:00').getTime();
+  }
   req.app.get('io').emit('message_updated', updated);
   res.json({ message: updated });
 });
@@ -120,8 +136,9 @@ router.delete('/messages/:id', requireAuth, (req, res) => {
   if (!msg) return res.status(404).json({ error: 'Not found' });
   if (msg.sender_id !== userId) return res.status(403).json({ error: 'Forbidden' });
 
+  const sentAt = typeof msg.sent_at === 'string' ? new Date(msg.sent_at + '+08:00').getTime() : msg.sent_at;
   if (action === 'recall') {
-    const age = Date.now() - new Date(msg.sent_at).getTime();
+    const age = Date.now() - sentAt;
     if (age > 10 * 60 * 1000) return res.status(400).json({ error: 'Recall window expired (10 min)' });
     run(`UPDATE messages SET is_recalled = 1 WHERE id = ?`, [id]);
   } else {
@@ -136,7 +153,7 @@ router.delete('/messages/:id', requireAuth, (req, res) => {
 router.post('/messages/clear', requireAuth, (req, res) => {
   const userId = req.session.userId;
   run(
-    `INSERT OR REPLACE INTO user_clear_history (user_id, cleared_at) VALUES (?, CURRENT_TIMESTAMP)`,
+    `INSERT OR REPLACE INTO user_clear_history (user_id, cleared_at) VALUES (?, datetime('now', 'localtime', '+8 hours'))`,
     [userId]
   );
   res.json({ ok: true });
