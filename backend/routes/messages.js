@@ -54,15 +54,13 @@ router.get('/messages', requireAuth, (req, res) => {
 
   const rows = all(sql, params).reverse();
   
-  // Convert UTC datetime strings to UTC+8 timestamps for display
+  // Convert UTC datetime strings to timestamps (keep as UTC)
   rows.forEach(m => {
     if (m.sent_at && typeof m.sent_at === 'string') {
-      // Parse UTC time and add 8 hours offset
       const [date, time] = m.sent_at.split(' ');
       const [year, month, day] = date.split('-').map(Number);
       const [hour, min, sec] = time.split(':').map(Number);
-      // Create UTC date, then add 8 hours (8 * 3600000 ms)
-      m.sent_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
+      m.sent_at = Date.UTC(year, month - 1, day, hour, min, sec);
     }
   });
 
@@ -92,12 +90,12 @@ router.post('/messages', requireAuth, (req, res) => {
 
   const msg = get('SELECT * FROM messages WHERE id = ?', [newId]);
   
-  // Convert UTC datetime to UTC+8 timestamp for display
+  // Convert UTC datetime to timestamp
   if (msg.sent_at && typeof msg.sent_at === 'string') {
     const [date, time] = msg.sent_at.split(' ');
     const [year, month, day] = date.split('-').map(Number);
     const [hour, min, sec] = time.split(':').map(Number);
-    msg.sent_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
+    msg.sent_at = Date.UTC(year, month - 1, day, hour, min, sec);
   }
 
   const io = req.app.get('io');
@@ -122,8 +120,7 @@ router.put('/messages/:id', requireAuth, (req, res) => {
         const [date, time] = msg.sent_at.split(' ');
         const [year, month, day] = date.split('-').map(Number);
         const [hour, min, sec] = time.split(':').map(Number);
-        // Convert UTC to UTC+8 timestamp for age calculation
-        return new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
+        return Date.UTC(year, month - 1, day, hour, min, sec);
       })()
     : msg.sent_at;
   const age = Date.now() - sentAt;
@@ -139,7 +136,7 @@ router.put('/messages/:id', requireAuth, (req, res) => {
     const [date, time] = updated.edited_at.split(' ');
     const [year, month, day] = date.split('-').map(Number);
     const [hour, min, sec] = time.split(':').map(Number);
-    updated.edited_at = new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
+    updated.edited_at = Date.UTC(year, month - 1, day, hour, min, sec);
   }
   req.app.get('io').emit('message_updated', updated);
   res.json({ message: updated });
@@ -160,8 +157,7 @@ router.delete('/messages/:id', requireAuth, (req, res) => {
         const [date, time] = msg.sent_at.split(' ');
         const [year, month, day] = date.split('-').map(Number);
         const [hour, min, sec] = time.split(':').map(Number);
-        // Convert UTC to UTC+8 timestamp for age calculation
-        return new Date(Date.UTC(year, month - 1, day, hour, min, sec)).getTime() + (8 * 3600000);
+        return Date.UTC(year, month - 1, day, hour, min, sec);
       })()
     : msg.sent_at;
   if (action === 'recall') {
