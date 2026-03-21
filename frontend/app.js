@@ -28,12 +28,12 @@ function fmtSep(ts) {
   // Convert to UTC+8
   const utc8Time = d.getTime() + (8 * 3600000);
   const utc8NowTime = now.getTime() + (8 * 3600000);
-  const todayStart = Date.UTC(new Date(utc8NowTime).getUTCFullYear(), new Date(utc8NowTime).getUTCMonth(), new Date(utc8NowTime).getUTCDate()).getTime();
+  const utc8Now = new Date(utc8NowTime);
+  const todayStart = Date.UTC(utc8Now.getUTCFullYear(), utc8Now.getUTCMonth(), utc8Now.getUTCDate());
   const yestStart  = todayStart - 86400000;
   if (utc8Time >= todayStart)  return 'Today '     + fmtTime(ts);
   if (utc8Time >= yestStart)   return 'Yesterday ' + fmtTime(ts);
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const utc8Now = new Date(utc8NowTime);
   const weekStart = todayStart - utc8Now.getUTCDay() * 86400000;
   if (utc8Time >= weekStart)   return days[utc8Now.getUTCDay()] + ' ' + fmtTime(ts);
   return new Date(utc8Time).toLocaleDateString('en-US', { timeZone: 'UTC' }) + ' ' + fmtTime(ts);
