@@ -220,6 +220,15 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
   transition:border .2s}
 .profile-input:focus{border-color:var(--accent);outline:none}
 .profile-err{font-size:13px;color:#e53935;min-height:16px;text-align:center}
+
+/* KISS RAIN */
+@keyframes kiss-fall{
+  0%  {transform:translateY(-80px) rotate(-15deg);opacity:1}
+  80% {opacity:1}
+  100%{transform:translateY(110vh) rotate(25deg);opacity:0}
+}
+.kiss-rain{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden;transition:opacity 1.5s}
+.kiss-emoji{position:absolute;top:0;animation:kiss-fall linear forwards}
 </style>
 </head>
 <body>

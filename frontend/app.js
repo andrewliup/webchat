@@ -523,6 +523,7 @@ function setupIntersectionObserver() {
       if (state.lastReadId && id <= state.lastReadId) return;
       state.lastReadId = id;
       api(`/api/messages/${id}/read`, { method: 'PUT' });
+      maybeKissRain(msg);
     });
   }, { threshold: 0.5 });
 
@@ -537,6 +538,37 @@ function setupIntersectionObserver() {
     });
   });
   mo.observe(area, { childList: true });
+}
+
+// ── KISS RAIN ──
+const kissTriggered = new Set();
+
+function triggerKissRain() {
+  const container = document.createElement('div');
+  container.className = 'kiss-rain';
+  for (let i = 0; i < 35; i++) {
+    const el = document.createElement('span');
+    el.className = 'kiss-emoji';
+    el.textContent = '😘';
+    const left     = Math.random() * 96;
+    const delay    = Math.random() * 3.5;
+    const duration = 2.5 + Math.random() * 2;
+    const size     = 22 + Math.random() * 22;
+    el.style.cssText = `left:${left}%;font-size:${size}px;animation-duration:${duration}s;animation-delay:${delay}s`;
+    container.appendChild(el);
+  }
+  document.body.appendChild(container);
+  setTimeout(() => {
+    container.style.opacity = '0';
+    setTimeout(() => container.remove(), 1500);
+  }, 5000);
+}
+
+function maybeKissRain(msg) {
+  if (!msg || !msg.content || !msg.content.includes('么么哒')) return;
+  if (kissTriggered.has(msg.id)) return;
+  kissTriggered.add(msg.id);
+  triggerKissRain();
 }
 
 // ── PAGE VISIBILITY (pause sync) ──
@@ -587,6 +619,7 @@ async function sendText() {
     const msg = data.message;
     if (typeof msg.sent_at === 'string') msg.sent_at = new Date(msg.sent_at).getTime();
     msg.id = Number(msg.id);
+    maybeKissRain(msg);
     await jumpToPresent(msg);
   }
 }
