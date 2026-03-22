@@ -452,7 +452,7 @@ function connectSocket() {
 
     appendMessage(msg);
     if (atBottom || msg.sender_id === state.me.id) {
-      requestAnimationFrame(() => { area.scrollTop = area.scrollHeight; });
+      requestAnimationFrame(() => { area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' }); });
     }
   });
 
@@ -706,7 +706,7 @@ async function jumpToPresent(newMsg) {
 function scrollToBottom() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      scrollInstant(document.getElementById('messagesArea'));
+      document.getElementById('messagesArea').scrollTo({ top: 9999999, behavior: 'smooth' });
     });
   });
 }
