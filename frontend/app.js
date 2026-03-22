@@ -59,7 +59,7 @@ function api(path, opts = {}) {
 function renderMessages() {
   const area   = document.getElementById('messagesArea');
   const badge  = document.getElementById('unreadBadge');
-  const msgs   = state.messages;
+  const msgs   = state.messages.filter(m => !m.is_deleted);
   let html = '';
 
   msgs.forEach((m, i) => {
