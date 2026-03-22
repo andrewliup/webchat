@@ -28,13 +28,73 @@ const upload = multer({
   }
 });
 
-// GET /api/messages?before=<id>&limit=50
+// GET /api/messages/initial - Load messages around last read
+router.get('/messages/initial', requireAuth, (req, res) => {
+  const userId = req.session.userId;
+  const limit = 50;
+
+  const clearRow = get('SELECT cleared_at FROM user_clear_history WHERE user_id = ?', [userId]);
+  const clearedAt = clearRow ? clearRow.cleared_at : null;
+
+  const lastRead = get(`SELECT MAX(message_id) as id FROM read_receipts WHERE user_id = ?`, [userId]);
+  const lastReadId = lastRead ? lastRead.id : null;
+
+  let messages = [];
+  if (lastReadId) {
+    // Load 50 before + 50 after last read
+    let sql = `SELECT * FROM messages WHERE is_deleted = 0`;
+    const params = [];
+    if (clearedAt) {
+      sql += ` AND sent_at > ?`;
+      params.push(clearedAt);
+    }
+    sql += ` AND id <= ? ORDER BY id DESC LIMIT ?`;
+    params.push(lastReadId, limit);
+    const before = all(sql, params);
+
+    sql = `SELECT * FROM messages WHERE is_deleted = 0`;
+    const params2 = [];
+    if (clearedAt) {
+      sql += ` AND sent_at > ?`;
+      params2.push(clearedAt);
+    }
+    sql += ` AND id > ? ORDER BY id ASC LIMIT ?`;
+    params2.push(lastReadId, limit);
+    const after = all(sql, params2);
+
+    messages = [...before.reverse(), ...after];
+  } else {
+    // No last read, load latest 50
+    let sql = `SELECT * FROM messages WHERE is_deleted = 0`;
+    const params = [];
+    if (clearedAt) {
+      sql += ` AND sent_at > ?`;
+      params.push(clearedAt);
+    }
+    sql += ` ORDER BY id DESC LIMIT ?`;
+    params.push(limit);
+    messages = all(sql, params).reverse();
+  }
+
+  messages.forEach(m => {
+    if (m.sent_at && typeof m.sent_at === 'string') {
+      const [date, time] = m.sent_at.split(' ');
+      const [year, month, day] = date.split('-').map(Number);
+      const [hour, min, sec] = time.split(':').map(Number);
+      m.sent_at = Date.UTC(year, month - 1, day, hour, min, sec);
+    }
+  });
+
+  res.json({ messages, lastReadId });
+});
+
+// GET /api/messages?before_id=<id>&after_id=<id>&limit=50
 router.get('/messages', requireAuth, (req, res) => {
   const userId = req.session.userId;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
-  const before = req.query.before ? parseInt(req.query.before) : null;
+  const beforeId = req.query.before_id ? parseInt(req.query.before_id) : null;
+  const afterId = req.query.after_id ? parseInt(req.query.after_id) : null;
 
-  // Respect cleared_at
   const clearRow = get('SELECT cleared_at FROM user_clear_history WHERE user_id = ?', [userId]);
   const clearedAt = clearRow ? clearRow.cleared_at : null;
 
@@ -45,17 +105,21 @@ router.get('/messages', requireAuth, (req, res) => {
     sql += ` AND sent_at > ?`;
     params.push(clearedAt);
   }
-  if (before) {
+  if (beforeId) {
     sql += ` AND id < ?`;
-    params.push(before);
+    params.push(beforeId);
   }
-  sql += ` ORDER BY id DESC LIMIT ?`;
+  if (afterId) {
+    sql += ` AND id > ?`;
+    params.push(afterId);
+  }
+  sql += afterId ? ` ORDER BY id ASC LIMIT ?` : ` ORDER BY id DESC LIMIT ?`;
   params.push(limit);
 
-  const rows = all(sql, params).reverse();
-  
-  // Convert UTC datetime strings to timestamps (keep as UTC)
-  rows.forEach(m => {
+  const rows = all(sql, params);
+  const messages = afterId ? rows : rows.reverse();
+
+  messages.forEach(m => {
     if (m.sent_at && typeof m.sent_at === 'string') {
       const [date, time] = m.sent_at.split(' ');
       const [year, month, day] = date.split('-').map(Number);
@@ -64,13 +128,7 @@ router.get('/messages', requireAuth, (req, res) => {
     }
   });
 
-  // Attach last read message id for current user
-  const lastRead = get(
-    `SELECT MAX(message_id) as id FROM read_receipts WHERE user_id = ?`,
-    [userId]
-  );
-
-  res.json({ messages: rows, lastReadId: lastRead ? lastRead.id : null });
+  res.json({ messages });
 });
 
 // POST /api/messages
@@ -225,9 +283,35 @@ router.post('/upload', requireAuth, upload.single('file'), (req, res) => {
   res.json({ url });
 });
 
+// POST /api/messages/seed — generate test messages
+router.post('/messages/seed', requireAuth, (req, res) => {
+  const users = all('SELECT id FROM users');
+  if (users.length < 2) return res.status(400).json({ error: 'Need 2 users' });
+  const [u1, u2] = users;
+  const samples = [
+    'Hey there!', 'How are you?', 'What are you up to?', 'That sounds great!',
+    'I agree with you', 'Let me check that', 'Sure, no problem', 'Sounds good to me',
+    'Have you seen this?', 'What do you think?', 'I was just thinking about that',
+    'That makes sense', 'Can you help me with something?', 'Of course!',
+    'Thanks a lot', 'No worries', 'Talk later?', 'Sure thing!',
+  ];
+  const count = parseInt(req.query.count) || 500;
+  const now = Date.now();
+  for (let i = 0; i < count; i++) {
+    const sender = i % 3 === 0 ? u2.id : u1.id;
+    const text = samples[i % samples.length] + ` #${i + 1}`;
+    const ts = new Date(now - (count - i) * 60000).toISOString().replace('T', ' ').slice(0, 19);
+    run(
+      `INSERT INTO messages (sender_id, content, type, sent_at) VALUES (?, ?, 'text', ?)`,
+      [sender, text, ts]
+    );
+  }
+  res.json({ ok: true, inserted: count });
+});
+
 // GET /api/users  (list both users + online status)
 router.get('/users', requireAuth, (req, res) => {
-  const users = all('SELECT id, email, nickname, avatar_color, avatar_url FROM users');
+  const users = all('SELECT id, email, nickname, avatar_color, avatar_url, last_seen FROM users');
   const onlineUsers = req.app.get('onlineUsers');
   const result = users.map(u => ({ ...u, online: onlineUsers.has(u.id) }));
   res.json({ users: result });

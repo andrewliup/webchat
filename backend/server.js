@@ -77,7 +77,10 @@ async function start() {
     socket.on('disconnect', () => {
       if (userId) {
         onlineUsers.delete(Number(userId));
-        io.emit('user_status', { userId: Number(userId), online: false });
+        const lastSeen = new Date().toISOString().replace('T', ' ').slice(0, 19);
+        const db = require('./db');
+        try { db.run(`UPDATE users SET last_seen = ? WHERE id = ?`, [lastSeen, Number(userId)]); } catch(e) {}
+        io.emit('user_status', { userId: Number(userId), online: false, lastSeen });
       }
     });
   });

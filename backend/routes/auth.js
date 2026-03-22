@@ -53,4 +53,10 @@ router.get('/me', (req, res) => {
   res.json({ user });
 });
 
+// GET /api/auth/debug-users — show registered emails (temporary debug)
+router.get('/debug-users', (req, res) => {
+  const users = db.all('SELECT id, email, nickname FROM users');
+  res.json({ users });
+});
+
 module.exports = router;

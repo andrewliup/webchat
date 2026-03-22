@@ -107,7 +107,7 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
 .quote-cancel{font-size:18px;color:var(--muted);flex-shrink:0;line-height:1}
 
 /* ── MEDIA MESSAGES ── */
-.bubble img,.bubble video{max-width:100%;border-radius:6px;display:block;margin-bottom:4px}
+.bubble img,.bubble video{max-width:100%;border-radius:6px;display:block;margin-bottom:4px;background:#000}
 .voice-msg{display:flex;align-items:center;gap:8px;min-width:160px}
 .voice-play{width:32px;height:32px;border-radius:50%;background:var(--accent);
   color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
@@ -291,7 +291,7 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
   </div>
 
   <!-- Hidden file inputs -->
-  <input type="file" id="imageInput" accept="image/*" style="display:none">
+  <input type="file" id="imageInput" accept="image/*" multiple style="display:none">
   <input type="file" id="videoInput" accept="video/*" style="display:none">
 </div>
 
@@ -396,7 +396,7 @@ function renderBubbleContent(m) {
     }
   }
   if (m.type === 'image') return quoteHtml + `<img src="${m.media_url}" alt="image" loading="lazy">`;
-  if (m.type === 'video') return quoteHtml + `<video src="${m.media_url}" controls playsinline></video>`;
+  if (m.type === 'video') return quoteHtml + `<video src="${m.media_url}" controls playsinline preload="metadata"></video>`;
   if (m.type === 'voice') return quoteHtml + `
     <div class="voice-msg">
       <button class="voice-play" onclick="playVoice(this)">▶</button>
@@ -616,10 +616,17 @@ document.getElementById('attachVideo').addEventListener('click', () => {
   document.getElementById('attachMenu').classList.remove('active');
 });
 document.getElementById('imageInput').addEventListener('change', e => {
-  const file = e.target.files[0]; if (!file) return;
-  const url = URL.createObjectURL(file);
-  state.messages.push({id:Date.now(),sender:state.me.id,type:'image',
-    content:'',media_url:url,sent_at:Date.now()});
+  const files = Array.from(e.target.files);
+  console.log('Files selected:', files.length);
+  if (!files.length) return;
+  files.forEach((file, idx) => {
+    const url = URL.createObjectURL(file);
+    const msg = {id:Date.now()+idx,sender:state.me.id,type:'image',
+      content:'',media_url:url,sent_at:Date.now()};
+    console.log('Adding message:', msg.id, file.name);
+    state.messages.push(msg);
+  });
+  console.log('Total messages:', state.messages.length);
   renderMessages();
   document.getElementById('messagesArea').scrollTop = 9999999;
   e.target.value = '';

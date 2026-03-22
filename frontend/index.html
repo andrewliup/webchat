@@ -56,13 +56,14 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
 .status-dot.away{background:#ffc107}
 .hdr-info{min-width:0}
 .hdr-name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-lastseen{font-size:11px;color:rgba(255,255,255,0.7);margin-top:1px;white-space:nowrap;min-height:14px}
 .hdr-actions{display:flex;gap:4px}
 .icon-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;
   justify-content:center;font-size:18px;transition:background .15s;color:var(--hdr-txt)}
 .icon-btn:active{background:rgba(255,255,255,.15)}
 
 /* MESSAGES */
-.messages-area{flex:1;overflow-y:auto;padding:8px 0;position:relative;scroll-behavior:smooth}
+.messages-area{flex:1;overflow-y:auto;padding:8px 0;position:relative}
 .messages-area::-webkit-scrollbar{width:4px}
 .messages-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .date-sep{text-align:center;margin:12px 0;font-size:12px;color:var(--muted)}
@@ -101,9 +102,14 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
 .quote-cancel{font-size:18px;color:var(--muted);flex-shrink:0;line-height:1}
 
 /* MEDIA */
-.bubble img,.bubble video{max-width:100%;border-radius:6px;display:block;margin-bottom:4px}
+.bubble img,.bubble video{max-width:100%;border-radius:6px;display:block;margin-bottom:4px;background:#000}
 .bubble.media-bubble,.msg-row.self .bubble.media-bubble{background:transparent!important;box-shadow:none!important;padding:2px}
 .thumb{max-width:200px;max-height:160px;object-fit:cover;border-radius:8px;display:block;cursor:zoom-in}
+.video-wrapper{position:relative;display:inline-block;cursor:pointer}
+.video-wrapper .play-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:48px;height:48px;background:rgba(0,0,0,.7);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;
+  pointer-events:none}
 /* Lightbox */
 .lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;
   align-items:center;justify-content:center}
@@ -218,7 +224,7 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
     <h1>WebChat</h1>
     <p>Private 1-on-1 Chat</p>
     <input type="email" id="emailInput" placeholder="Email address" autocomplete="email">
-    <input type="password" id="passcodeInput" placeholder="Group chat code" maxlength="10">
+    <input type="password" id="passcodeInput" placeholder="Chat Pass Code" maxlength="10">
     <button class="login-btn" id="loginBtn">Join Chat</button>
     <div class="login-err" id="loginErr"></div>
   </div>
@@ -234,6 +240,7 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
       </div>
       <div class="hdr-info">
         <div class="hdr-name" id="partnerName">Partner</div>
+        <div class="hdr-lastseen" id="partnerLastSeen"></div>
       </div>
     </div>
     <div class="hdr-actions">
@@ -292,9 +299,9 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
     <button class="ctx-item" id="ctxClear"><span class="ctx-icon">🧹</span><span class="ctx-label">Clear</span></button>
   </div>
 
-  <input type="file" id="imageInput" accept="image/*" capture="environment" style="display:none">
-  <input type="file" id="videoInput" accept="video/*" capture="environment" style="display:none">
-  <input type="file" id="avatarInput" accept="image/*" capture="user" style="display:none">
+  <input type="file" id="imageInput" accept="image/*" multiple style="display:none">
+  <input type="file" id="videoInput" accept="video/*" style="display:none">
+  <input type="file" id="avatarInput" accept="image/*" style="display:none">
 
   <!-- PROFILE PANEL -->
   <div class="profile-overlay" id="profileOverlay">

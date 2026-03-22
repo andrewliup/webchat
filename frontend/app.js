@@ -2,6 +2,9 @@
 const state = {
   me: null, partner: null, users: [],
   messages: [], lastReadId: null,
+  oldestLoadedId: null, newestLoadedId: null,
+  hasMoreOlder: true, hasMoreNewer: false,
+  isLoadingOlder: false, isLoadingNewer: false,
   unreadCount: 0, firstUnreadId: null,
   theme: localStorage.getItem('theme') || 'light',
   ctxTarget: null, quoteMsg: null,
@@ -103,7 +106,7 @@ function renderBubbleContent(m) {
     }
   }
   if (m.type === 'image') return quoteHtml + `<img class="thumb" src="${m.media_url}" alt="image" loading="lazy" onclick="openLightbox('image','${m.media_url}')">`;
-  if (m.type === 'video') return quoteHtml + `<video class="thumb" src="${m.media_url}" playsinline onclick="openLightbox('video','${m.media_url}')"></video>`;
+  if (m.type === 'video') return quoteHtml + `<div class="video-wrapper" onclick="openLightbox('video','${m.media_url}')"><video class="thumb" src="${m.media_url}#t=0.1" preload="metadata"></video><div class="play-btn">▶</div></div>`;
   return quoteHtml + `<span class="bubble-text">${escHtml(m.content)}</span>`;
 }
 
@@ -140,7 +143,7 @@ function updateUnreadBadge() {
 }
 
 // ── LOGIN ──
-document.getElementById('loginBtn').addEventListener('click', async () => {
+async function doLogin() {
   const email    = document.getElementById('emailInput').value.trim();
   const passcode = document.getElementById('passcodeInput').value.trim();
   const err      = document.getElementById('loginErr');
@@ -158,6 +161,14 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   if (!res.ok) { err.textContent = data.error || 'Login failed.'; return; }
 
   await enterChat(data.user);
+}
+
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('passcodeInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('emailInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('passcodeInput').focus();
 });
 
 async function enterChat(user) {
@@ -181,9 +192,19 @@ async function enterChat(user) {
   setupIntersectionObserver();
 }
 
+function fmtLastSeen(ts) {
+  if (!ts) return '';
+  const diff = Math.floor((Date.now() - new Date(ts.replace(' ', 'T') + 'Z').getTime()) / 1000);
+  if (diff < 60)           return 'last seen just now';
+  if (diff < 3600)         return `last seen ${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400)        return `last seen ${Math.floor(diff / 3600)} hr ago`;
+  return `last seen ${Math.floor(diff / 86400)} day${Math.floor(diff / 86400) > 1 ? 's' : ''} ago`;
+}
+
 function updatePartnerHeader() {
   const p = state.partner;
   const dot = document.getElementById('partnerDot');
+  const lastSeenEl = document.getElementById('partnerLastSeen');
   if (p) {
     document.getElementById('partnerName').textContent = p.nickname;
     const av = document.getElementById('partnerAvatar');
@@ -197,33 +218,120 @@ function updatePartnerHeader() {
       av.style.cursor = 'default';
       av.onclick = null;
     }
-    dot.className = 'status-dot ' + (p.online ? 'online' : 'away');
+    if (p.online) {
+      dot.className = 'status-dot online';
+      lastSeenEl.textContent = 'active';
+    } else {
+      dot.className = 'status-dot away';
+      lastSeenEl.textContent = fmtLastSeen(p.last_seen);
+    }
   } else {
     document.getElementById('partnerName').textContent = 'Waiting for partner…';
     dot.className = 'status-dot';
+    lastSeenEl.textContent = '';
   }
 }
 
 async function loadMessages() {
-  const res  = await api('/api/messages?limit=100');
+  const res  = await api('/api/messages/initial');
   const data = await res.json();
   const msgs = data.messages || [];
 
-  // Normalise timestamps to ms
   msgs.forEach(m => {
     if (typeof m.sent_at === 'string') m.sent_at = new Date(m.sent_at).getTime();
   });
 
-  // Determine unread
-  const serverLastRead = data.lastReadId || null;
-  state.lastReadId = serverLastRead;
-
-  const unread = msgs.filter(m => m.sender_id !== state.me.id && (!serverLastRead || m.id > serverLastRead));
+  state.lastReadId = data.lastReadId || null;
+  const unread = msgs.filter(m => m.sender_id !== state.me.id && (!state.lastReadId || m.id > state.lastReadId));
   state.unreadCount   = unread.length;
   state.firstUnreadId = unread.length ? unread[0].id : null;
 
   state.messages = msgs;
+  state.oldestLoadedId = msgs.length ? msgs[0].id : null;
+  state.newestLoadedId = msgs.length ? msgs[msgs.length - 1].id : null;
+  state.hasMoreOlder = msgs.length >= 50;
+  // Check if there are newer messages beyond what was loaded
+  const newerCount = state.lastReadId ? msgs.filter(m => m.id > state.lastReadId).length : 0;
+  state.hasMoreNewer = newerCount >= 50;
+
   renderMessages();
+  setTimeout(() => scrollToLastRead(), 150);
+}
+
+async function loadOlderMessages() {
+  if (!state.hasMoreOlder || state.isLoadingOlder || !state.oldestLoadedId) return;
+  state.isLoadingOlder = true;
+
+  const res = await api(`/api/messages?before_id=${state.oldestLoadedId}&limit=50`);
+  const data = await res.json();
+  const msgs = data.messages || [];
+
+  msgs.forEach(m => {
+    if (typeof m.sent_at === 'string') m.sent_at = new Date(m.sent_at).getTime();
+  });
+
+  if (msgs.length) {
+    const area = document.getElementById('messagesArea');
+    const oldHeight = area.scrollHeight;
+
+    state.messages = [...msgs, ...state.messages];
+    state.oldestLoadedId = msgs[0].id;
+    state.hasMoreOlder = msgs.length >= 50;
+
+    renderMessages();
+
+    const newHeight = area.scrollHeight;
+    area.scrollTop = newHeight - oldHeight;
+  } else {
+    state.hasMoreOlder = false;
+  }
+
+  state.isLoadingOlder = false;
+}
+
+async function loadNewerMessages() {
+  if (!state.hasMoreNewer || state.isLoadingNewer || !state.newestLoadedId) return;
+  state.isLoadingNewer = true;
+
+  const res = await api(`/api/messages?after_id=${state.newestLoadedId}&limit=50`);
+  const data = await res.json();
+  const msgs = data.messages || [];
+
+  msgs.forEach(m => {
+    if (typeof m.sent_at === 'string') m.sent_at = new Date(m.sent_at).getTime();
+  });
+
+  if (msgs.length) {
+    state.messages = [...state.messages, ...msgs];
+    state.newestLoadedId = msgs[msgs.length - 1].id;
+    state.hasMoreNewer = msgs.length >= 50;
+    renderMessages();
+  } else {
+    state.hasMoreNewer = false;
+  }
+
+  state.isLoadingNewer = false;
+}
+
+function scrollToLastRead() {
+  const area = document.getElementById('messagesArea');
+  if (!state.lastReadId || state.unreadCount === 0) {
+    // No unread — go to absolute bottom
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        area.scrollTop = area.scrollHeight + 9999;
+      });
+    });
+    return;
+  }
+  // Has unread — scroll so last-read message is at top, unread messages visible below
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-id="${state.lastReadId}"]`);
+      if (el) el.scrollIntoView({ block: 'start' });
+      else area.scrollTop = area.scrollHeight + 9999;
+    });
+  });
 }
 
 // ── SOCKET.IO ──
@@ -272,9 +380,13 @@ function connectSocket() {
     }
   });
 
-  state.socket.on('user_status', ({ userId, online }) => {
+  state.socket.on('user_status', ({ userId, online, lastSeen }) => {
     const u = state.users.find(x => x.id === userId);
-    if (u) { u.online = online; updatePartnerHeader(); }
+    if (u) {
+      u.online = online;
+      if (!online && lastSeen) u.last_seen = lastSeen;
+      updatePartnerHeader();
+    }
   });
 
   state.socket.on('user_updated', ({ user }) => {
@@ -371,12 +483,7 @@ async function sendText() {
     const msg = data.message;
     if (typeof msg.sent_at === 'string') msg.sent_at = new Date(msg.sent_at).getTime();
     msg.id = Number(msg.id);
-    // Add if socket hasn't echoed it yet (dedup by numeric id)
-    if (!state.messages.find(m => Number(m.id) === msg.id)) {
-      state.messages.push(msg);
-    }
-    renderMessages();
-    document.getElementById('messagesArea').scrollTop = 9999999;
+    await jumpToPresent(msg);
   }
 }
 
@@ -449,15 +556,62 @@ async function uploadAndSend(file, type) {
     const msg = data.message;
     if (typeof msg.sent_at === 'string') msg.sent_at = new Date(msg.sent_at).getTime();
     msg.id = Number(msg.id);
-    if (!state.messages.find(m => Number(m.id) === msg.id)) state.messages.push(msg);
-    renderMessages();
-    document.getElementById('messagesArea').scrollTop = 9999999;
+    await jumpToPresent(msg);
   }
 }
 
+// Jump to bottom, replacing loaded messages with latest batch + new message
+async function jumpToPresent(newMsg) {
+  if (state.hasMoreNewer) {
+    // There are unread messages not in memory — fetch latest batch from server
+    const res  = await api('/api/messages?limit=50');
+    const data = await res.json();
+    const msgs = data.messages || [];
+    msgs.forEach(m => {
+      if (typeof m.sent_at === 'string') m.sent_at = new Date(m.sent_at).getTime();
+      m.id = Number(m.id);
+    });
+    // Ensure our new message is included
+    if (newMsg && !msgs.find(m => m.id === newMsg.id)) msgs.push(newMsg);
+    state.messages      = msgs;
+    state.oldestLoadedId = msgs.length ? msgs[0].id : null;
+    state.newestLoadedId = msgs.length ? msgs[msgs.length - 1].id : null;
+    state.hasMoreOlder  = msgs.length >= 50;
+    state.hasMoreNewer  = false;
+    state.unreadCount   = 0;
+    state.firstUnreadId = null;
+  } else {
+    // Already have all messages — just append if not present
+    if (newMsg && !state.messages.find(m => m.id === newMsg.id)) {
+      state.messages.push(newMsg);
+      state.newestLoadedId = newMsg.id;
+    }
+    state.unreadCount   = 0;
+    state.firstUnreadId = null;
+  }
+  renderMessages();
+  scrollToBottom();
+  // Re-scroll after images in the last message finish loading
+  const area = document.getElementById('messagesArea');
+  area.querySelectorAll('img, video').forEach(el => {
+    el.addEventListener('load', () => { area.scrollTop = area.scrollHeight + 9999; }, { once: true });
+    el.addEventListener('loadedmetadata', () => { area.scrollTop = area.scrollHeight + 9999; }, { once: true });
+  });
+}
+
+function scrollToBottom() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const area = document.getElementById('messagesArea');
+      area.scrollTop = area.scrollHeight + 9999;
+    });
+  });
+}
+
 document.getElementById('imageInput').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) return;
-  uploadAndSend(f, 'image');
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  files.forEach(f => uploadAndSend(f, 'image'));
   e.target.value = '';
 });
 document.getElementById('videoInput').addEventListener('change', e => {
@@ -600,27 +754,52 @@ document.getElementById('themeBtn').addEventListener('click', () => {
   localStorage.setItem('theme', state.theme);
 });
 
-// ── SCROLL READ TRACKING ──
+// ── SCROLL READ TRACKING & LAZY LOAD ──
+let scrollDebounce = null;
 document.getElementById('messagesArea').addEventListener('scroll', () => {
   const area = document.getElementById('messagesArea');
+
+  // Clear unread badge at bottom
   if (area.scrollTop + area.clientHeight >= area.scrollHeight - 20) {
     state.unreadCount = 0;
     document.getElementById('unreadBadge').style.display = 'none';
   }
+
+  // Debounced lazy loading
+  clearTimeout(scrollDebounce);
+  scrollDebounce = setTimeout(() => {
+    // Load older messages when near top
+    if (area.scrollTop < 200 && state.hasMoreOlder && !state.isLoadingOlder) {
+      loadOlderMessages();
+    }
+    // Load newer messages when near bottom
+    if (area.scrollHeight - area.scrollTop - area.clientHeight < 200 && state.hasMoreNewer && !state.isLoadingNewer) {
+      loadNewerMessages();
+    }
+  }, 300);
 });
 
 // ── RESTORE SESSION ON LOAD ──
+// Refresh "last seen X ago" every minute
+setInterval(() => { if (state.partner && !state.partner.online) updatePartnerHeader(); }, 60000);
+
 (async () => {
   const res = await api('/api/auth/me');
   if (res.ok) {
     const data = await res.json();
     await enterChat(data.user);
+  } else {
+    // Restore last used email if available
+    const lastEmail = localStorage.getItem('lastEmail');
+    if (lastEmail) document.getElementById('emailInput').value = lastEmail;
   }
 })();
 
 // ── LOGOUT ──
 document.getElementById('logoutBtn').addEventListener('click', async () => {
+  const email = state.me ? state.me.email : '';
   await api('/api/auth/logout', { method: 'POST' });
+  if (email) localStorage.setItem('lastEmail', email);
   location.reload();
 });
 
