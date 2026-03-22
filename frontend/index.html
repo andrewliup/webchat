@@ -68,7 +68,7 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
 .messages-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .date-sep{text-align:center;margin:12px 0;font-size:12px;color:var(--muted)}
 @keyframes msg-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.msg-row.new-msg{animation:msg-in 0.18s ease-out}
+.msg-row.new-msg,.date-sep.new-msg{animation:msg-in 0.18s ease-out}
 .date-sep span{background:var(--bg-card);padding:4px 10px;border-radius:8px;box-shadow:var(--shadow)}
 .msg-row{display:flex;align-items:flex-end;gap:6px;padding:5px 10px;margin:1px 0}
 .msg-row.self{flex-direction:row-reverse}

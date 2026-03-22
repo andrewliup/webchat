@@ -182,24 +182,29 @@ function buildMsgRowHtml(m, msgs, idx) {
   return html;
 }
 
+// Bug 3: fade-in both the separator and the message row together
 function appendMessage(msg) {
   const area = document.getElementById('messagesArea');
   const msgs = state.messages.filter(m => !m.is_deleted);
   const idx  = msgs.findIndex(m => m.id === msg.id);
   if (idx === -1) { renderMessages(); return; }
   const frag = document.createRange().createContextualFragment(buildMsgRowHtml(msg, msgs, idx));
-  // Add fade-in class to the new msg-row node before inserting
-  frag.querySelectorAll('.msg-row').forEach(el => el.classList.add('new-msg'));
+  frag.querySelectorAll('.msg-row, .date-sep').forEach(el => el.classList.add('new-msg'));
   area.appendChild(frag);
   updateUnreadBadge();
 }
 
+// Bug 4: also remove orphaned date separator when a message is deleted
 function updateBubble(id) {
   const msg = state.messages.find(m => m.id === id);
   if (!msg) return;
   if (msg.is_deleted) {
     const row = document.querySelector(`#messagesArea .msg-row[data-id="${id}"]`);
-    if (row) row.remove();
+    if (row) {
+      const prev = row.previousElementSibling;
+      if (prev && prev.classList.contains('date-sep')) prev.remove();
+      row.remove();
+    }
     return;
   }
   const bubble = document.querySelector(`#messagesArea .bubble[data-id="${id}"]`);
@@ -401,15 +406,17 @@ async function loadNewerMessages() {
   state.isLoadingNewer = false;
 }
 
+// Bug fix: instant scroll for initial load/pagination — smooth only for user-triggered scrolls
+function scrollInstant(area) {
+  area.style.scrollBehavior = 'auto';
+  area.scrollTop = area.scrollHeight + 9999;
+  area.style.scrollBehavior = '';
+}
+
 function scrollToLastRead() {
   const area = document.getElementById('messagesArea');
   if (!state.lastReadId || state.unreadCount === 0) {
-    // No unread — go to absolute bottom
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        area.scrollTop = area.scrollHeight + 9999;
-      });
-    });
+    requestAnimationFrame(() => { requestAnimationFrame(() => { scrollInstant(area); }); });
     return;
   }
   // Has unread — scroll so last-read message is at top, unread messages visible below
@@ -417,7 +424,7 @@ function scrollToLastRead() {
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-id="${state.lastReadId}"]`);
       if (el) el.scrollIntoView({ block: 'start' });
-      else area.scrollTop = area.scrollHeight + 9999;
+      else scrollInstant(area);
     });
   });
 }
@@ -689,16 +696,15 @@ async function jumpToPresent(newMsg) {
   // Re-scroll after images in the last message finish loading
   const area = document.getElementById('messagesArea');
   area.querySelectorAll('img, video').forEach(el => {
-    el.addEventListener('load', () => { area.scrollTop = area.scrollHeight + 9999; }, { once: true });
-    el.addEventListener('loadedmetadata', () => { area.scrollTop = area.scrollHeight + 9999; }, { once: true });
+    el.addEventListener('load', () => { scrollInstant(area); }, { once: true });
+    el.addEventListener('loadedmetadata', () => { scrollInstant(area); }, { once: true });
   });
 }
 
 function scrollToBottom() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      const area = document.getElementById('messagesArea');
-      area.scrollTop = area.scrollHeight + 9999;
+      scrollInstant(document.getElementById('messagesArea'));
     });
   });
 }
@@ -716,29 +722,33 @@ document.getElementById('videoInput').addEventListener('change', e => {
 });
 
 // ── CONTEXT MENU ──
+// Desktop: right-click. Mobile: long press (pointerdown below). Suppress on touch to avoid double-fire.
 document.getElementById('messagesArea').addEventListener('contextmenu', e => {
   e.preventDefault();
+  if (e.pointerType === 'touch' || state._longPressFired) return;
   const bubble = e.target.closest('.bubble');
   if (bubble) showCtxMenu(e.clientX, e.clientY, bubble);
 });
+// Bug 2: always clear any pending timer and reset flag at the start of a new press
 document.getElementById('messagesArea').addEventListener('pointerdown', e => {
+  clearTimeout(state._longPressTimer);
+  state._longPressFired = false;
   const bubble = e.target.closest('.bubble');
   if (!bubble) return;
-  state._longPressFired = false;
   state._longPressTimer = setTimeout(() => {
     state._longPressFired = true;
     window.getSelection()?.removeAllRanges();
     showCtxMenu(e.clientX, e.clientY, bubble);
   }, 600);
 });
-document.getElementById('messagesArea').addEventListener('pointermove', () => {
-  clearTimeout(state._longPressTimer);
-});
-document.addEventListener('click', () => {
-  if (state._longPressFired) { state._longPressFired = false; return; }
-  document.getElementById('ctxMenu').classList.remove('active');
-  document.getElementById('emojiPicker').style.display = 'none';
-  document.getElementById('attachMenu').classList.remove('active');
+// Cancel timer on release or cancel — prevents menu showing after a quick tap
+document.getElementById('messagesArea').addEventListener('pointerup',     () => clearTimeout(state._longPressTimer));
+document.getElementById('messagesArea').addEventListener('pointercancel', () => clearTimeout(state._longPressTimer));
+document.getElementById('messagesArea').addEventListener('pointermove',   () => clearTimeout(state._longPressTimer));
+document.addEventListener('pointerdown', e => {
+  if (!e.target.closest('#ctxMenu'))    document.getElementById('ctxMenu').classList.remove('active');
+  if (!e.target.closest('#emojiPicker')) document.getElementById('emojiPicker').style.display = 'none';
+  if (!e.target.closest('#attachMenu')) document.getElementById('attachMenu').classList.remove('active');
 });
 
 function showCtxMenu(x, y, bubble) {
