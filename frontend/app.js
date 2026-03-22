@@ -105,8 +105,16 @@ function renderBubbleContent(m) {
       quoteHtml  = `<div class="quote-bar" onclick="jumpToMsg(${q.id})"><strong>${escHtml(qs.nickname || '?')}</strong>${qTxt}</div>`;
     }
   }
-  if (m.type === 'image') return quoteHtml + `<img class="thumb" src="${m.media_url}" alt="image" loading="lazy" onclick="openLightbox('image','${m.media_url}')">`;
-  if (m.type === 'video') return quoteHtml + `<div class="video-wrapper" onclick="openLightbox('video','${m.media_url}')"><video class="thumb" src="${m.media_url}#t=0.1" preload="metadata"></video><div class="play-btn">▶</div></div>`;
+  if (m.type === 'image') {
+    const thumb = m.thumb_url || m.media_url;
+    return quoteHtml + `<img class="thumb" src="${thumb}" alt="image" loading="lazy" onclick="openLightbox('image','${m.media_url}')">`;
+  }
+  if (m.type === 'video') {
+    if (m.thumb_url) {
+      return quoteHtml + `<div class="video-wrapper" onclick="openLightbox('video','${m.media_url}')"><img class="thumb" src="${m.thumb_url}" alt="video" loading="lazy"><div class="play-btn">▶</div></div>`;
+    }
+    return quoteHtml + `<div class="video-wrapper" onclick="openLightbox('video','${m.media_url}')"><video class="thumb" src="${m.media_url}#t=0.1" preload="metadata"></video><div class="play-btn">▶</div></div>`;
+  }
   return quoteHtml + `<span class="bubble-text">${escHtml(m.content)}</span>`;
 }
 
@@ -140,6 +148,84 @@ function updateUnreadBadge() {
   } else {
     badge.style.display = 'none';
   }
+}
+
+// ── INCREMENTAL DOM HELPERS (avoid full re-render when only one thing changes) ──
+const EYE_SVG = `<svg width="14" height="10" viewBox="0 0 14 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 1C4 1 1.5 4 1 5c.5 1 3 4 6 4s5.5-3 6-4c-.5-1-3-4-6-4z" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="7" cy="5" r="1.8" fill="currentColor"/></svg>`;
+
+function buildMsgRowHtml(m, msgs, idx) {
+  const isSelf     = m.sender_id === state.me.id;
+  const sender     = state.users.find(u => u.id === m.sender_id) || {};
+  const color      = isSelf ? '#7c4dff' : (sender.avatar_color || '#00a884');
+  const isLastRead = isSelf && m.id === state.lastReadId;
+  const isMedia    = m.type === 'image' || m.type === 'video';
+  const avatarInner = sender.avatar_url
+    ? `<img src="${sender.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : (sender.nickname || sender.email || '?')[0].toUpperCase();
+  const avatarBg    = sender.avatar_url ? 'transparent' : color;
+  const avatarClick = sender.avatar_url
+    ? `onclick="openLightbox('image','${sender.avatar_url}')" style="background:${avatarBg}"`
+    : `style="background:${avatarBg}"`;
+  let html = '';
+  if (needsSep(msgs, idx))
+    html += `<div class="date-sep"><span>${fmtSep(new Date(m.sent_at).getTime())}</span></div>`;
+  html += `<div class="msg-row ${isSelf ? 'self' : ''}" data-id="${m.id}">
+      <div class="msg-avatar" ${avatarClick}>${avatarInner}</div>
+      <div class="bubble${isMedia ? ' media-bubble' : ''}" data-id="${m.id}">
+        ${renderBubbleContent(m)}
+        <div class="bubble-meta">
+          ${m.edited_at ? '<span class="edited-tag">edited</span>' : ''}
+        </div>
+      </div>
+      ${isLastRead ? `<span class="eye-icon">${EYE_SVG}</span>` : ''}
+    </div>`;
+  return html;
+}
+
+function appendMessage(msg) {
+  const area = document.getElementById('messagesArea');
+  const msgs = state.messages.filter(m => !m.is_deleted);
+  const idx  = msgs.findIndex(m => m.id === msg.id);
+  if (idx === -1) { renderMessages(); return; }
+  const frag = document.createRange().createContextualFragment(buildMsgRowHtml(msg, msgs, idx));
+  area.appendChild(frag);
+  updateUnreadBadge();
+}
+
+function updateBubble(id) {
+  const msg = state.messages.find(m => m.id === id);
+  if (!msg) return;
+  if (msg.is_deleted) {
+    const row = document.querySelector(`#messagesArea .msg-row[data-id="${id}"]`);
+    if (row) row.remove();
+    return;
+  }
+  const bubble = document.querySelector(`#messagesArea .bubble[data-id="${id}"]`);
+  if (!bubble) { renderMessages(); return; }
+  bubble.innerHTML = renderBubbleContent(msg) +
+    `<div class="bubble-meta">${msg.edited_at ? '<span class="edited-tag">edited</span>' : ''}</div>`;
+}
+
+function updateEyeIcon(messageId) {
+  const area = document.getElementById('messagesArea');
+  area.querySelectorAll('.eye-icon').forEach(e => e.remove());
+  const row = area.querySelector(`.msg-row[data-id="${messageId}"]`);
+  if (row) {
+    const eye = document.createElement('span');
+    eye.className = 'eye-icon';
+    eye.innerHTML = EYE_SVG;
+    row.appendChild(eye);
+  }
+}
+
+function updateAvatarsInDom(user) {
+  if (!user.avatar_url) return;
+  const area = document.getElementById('messagesArea');
+  const sel  = user.id === state.me.id ? '.msg-row.self .msg-avatar' : '.msg-row:not(.self) .msg-avatar';
+  area.querySelectorAll(sel).forEach(el => {
+    el.innerHTML = `<img src="${user.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    el.style.background = 'transparent';
+  });
 }
 
 // ── LOGIN ──
@@ -353,7 +439,7 @@ function connectSocket() {
       if (!state.firstUnreadId) state.firstUnreadId = msg.id;
     }
 
-    renderMessages();
+    appendMessage(msg);
     if (atBottom || msg.sender_id === state.me.id) {
       area.scrollTop = area.scrollHeight;
     }
@@ -361,7 +447,7 @@ function connectSocket() {
 
   state.socket.on('message_updated', updated => {
     const idx = state.messages.findIndex(m => m.id === updated.id);
-    if (idx !== -1) { state.messages[idx] = { ...state.messages[idx], ...updated }; renderMessages(); }
+    if (idx !== -1) { state.messages[idx] = { ...state.messages[idx], ...updated }; updateBubble(updated.id); }
   });
 
   state.socket.on('message_deleted', ({ id, action }) => {
@@ -369,14 +455,14 @@ function connectSocket() {
     if (idx !== -1) {
       if (action === 'recall') state.messages[idx].is_recalled = 1;
       else state.messages[idx].is_deleted = 1;
-      renderMessages();
+      updateBubble(id);
     }
   });
 
   state.socket.on('message_read', ({ userId, messageId }) => {
     if (userId !== state.me.id) {
       state.lastReadId = messageId;
-      renderMessages();
+      updateEyeIcon(messageId);
     }
   });
 
@@ -399,7 +485,7 @@ function connectSocket() {
     if (state.me && state.me.id === user.id) {
       state.me = { ...state.me, ...user };
     }
-    renderMessages();
+    updateAvatarsInDom(user);
   });
 
   state.socket.on('user_typing', ({ userId }) => {
@@ -427,10 +513,15 @@ function setupIntersectionObserver() {
     });
   }, { threshold: 0.5 });
 
-  // Re-observe on each render
+  // Re-observe on each render; also stop shimmer when images finish loading
   const area = document.getElementById('messagesArea');
   const mo = new MutationObserver(() => {
     area.querySelectorAll('.msg-row').forEach(el => observer.observe(el));
+    area.querySelectorAll('img.thumb:not(.loaded)').forEach(img => {
+      if (img.complete) { img.classList.add('loaded'); return; }
+      img.addEventListener('load',  () => img.classList.add('loaded'), { once: true });
+      img.addEventListener('error', () => img.classList.add('loaded'), { once: true });
+    });
   });
   mo.observe(area, { childList: true });
 }
@@ -550,7 +641,9 @@ async function uploadAndSend(file, type) {
   const upRes  = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: fd });
   const upData = await upRes.json();
   if (!upData.url) return;
-  const res  = await api('/api/messages', { method: 'POST', body: JSON.stringify({ type, media_url: upData.url }) });
+  const body = { type, media_url: upData.url };
+  if (upData.thumb_url) body.thumb_url = upData.thumb_url;
+  const res  = await api('/api/messages', { method: 'POST', body: JSON.stringify(body) });
   const data = await res.json();
   if (data.message) {
     const msg = data.message;

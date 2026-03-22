@@ -3,6 +3,9 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const sharp = require('sharp');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegStatic = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegStatic);
 const db = require('../db');
 const { run, runInsert, get, all } = db;
 
@@ -134,7 +137,7 @@ router.get('/messages', requireAuth, (req, res) => {
 
 // POST /api/messages
 router.post('/messages', requireAuth, (req, res) => {
-  const { content, type = 'text', media_url, duration, quote_id } = req.body;
+  const { content, type = 'text', media_url, thumb_url, duration, quote_id } = req.body;
   const sender_id = req.session.userId;
 
   if (!content && !media_url) {
@@ -142,9 +145,9 @@ router.post('/messages', requireAuth, (req, res) => {
   }
 
   const newId = runInsert(
-    `INSERT INTO messages (sender_id, content, type, media_url, duration, quote_id)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [sender_id, content || null, type, media_url || null, duration || null, quote_id || null]
+    `INSERT INTO messages (sender_id, content, type, media_url, thumb_url, duration, quote_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [sender_id, content || null, type, media_url || null, thumb_url || null, duration || null, quote_id || null]
   );
 
   const msg = get('SELECT * FROM messages WHERE id = ?', [newId]);
@@ -292,6 +295,7 @@ router.post('/upload/avatar', requireAuth, avatarUpload.single('file'), async (r
     const filename = `avatar-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
     const outPath = path.join(__dirname, '../uploads', filename);
     await sharp(req.file.buffer)
+      .rotate()
       .resize(128, 128, { fit: 'cover', position: 'centre' })
       .webp({ quality: 80 })
       .toFile(outPath);
@@ -302,9 +306,41 @@ router.post('/upload/avatar', requireAuth, avatarUpload.single('file'), async (r
 });
 
 // POST /api/upload
-router.post('/upload', requireAuth, upload.single('file'), (req, res) => {
+function extractVideoThumb(videoPath, thumbPath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg(videoPath)
+      .screenshots({ timestamps: ['0.5'], filename: path.basename(thumbPath), folder: path.dirname(thumbPath), size: '400x?' })
+      .on('end', resolve)
+      .on('error', reject);
+  });
+}
+
+router.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const url = `/uploads/${req.file.filename}`;
+
+  if (req.file.mimetype.startsWith('image/')) {
+    try {
+      const thumbName = req.file.filename.replace(/(\.[^.]+)?$/, '-thumb.webp');
+      const thumbPath = path.join(__dirname, '../uploads', thumbName);
+      await sharp(req.file.path)
+        .rotate()
+        .resize(400, 300, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 75 })
+        .toFile(thumbPath);
+      return res.json({ url, thumb_url: `/uploads/${thumbName}` });
+    } catch (err) { /* fall through */ }
+  }
+
+  if (req.file.mimetype.startsWith('video/')) {
+    try {
+      const thumbName = req.file.filename.replace(/(\.[^.]+)?$/, '-thumb.jpg');
+      const thumbPath = path.join(__dirname, '../uploads', thumbName);
+      await extractVideoThumb(req.file.path, thumbPath);
+      return res.json({ url, thumb_url: `/uploads/${thumbName}` });
+    } catch (err) { /* fall through */ }
+  }
+
   res.json({ url });
 });
 

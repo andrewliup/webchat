@@ -103,9 +103,13 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
 .quote-cancel{font-size:18px;color:var(--muted);flex-shrink:0;line-height:1}
 
 /* MEDIA */
-.bubble img,.bubble video{max-width:100%;border-radius:6px;display:block;margin-bottom:4px;background:#000}
+@keyframes img-shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.bubble img,.bubble video{max-width:100%;border-radius:6px;display:block;margin-bottom:4px;background:var(--border)}
 .bubble.media-bubble,.msg-row.self .bubble.media-bubble{background:transparent!important;box-shadow:none!important;padding:2px}
-.thumb{max-width:200px;max-height:160px;object-fit:cover;border-radius:8px;display:block;cursor:zoom-in}
+.thumb{max-width:200px;max-height:160px;min-height:80px;object-fit:cover;border-radius:8px;display:block;cursor:zoom-in;
+  background:linear-gradient(90deg,var(--border) 25%,var(--bg-card) 50%,var(--border) 75%);
+  background-size:800px 100%;animation:img-shimmer 1.5s infinite linear}
+.thumb.loaded{animation:none;background:transparent}
 .video-wrapper{position:relative;display:inline-block;cursor:pointer}
 .video-wrapper .play-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   width:48px;height:48px;background:rgba(0,0,0,.7);border-radius:50%;

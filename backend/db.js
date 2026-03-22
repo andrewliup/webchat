@@ -76,6 +76,7 @@ function runMigrations() {
   try { db.run(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'`); } catch(e) {}
   try { db.run(`ALTER TABLE users ADD COLUMN last_seen DATETIME`); } catch(e) {}
   try { db.run(`ALTER TABLE messages ADD COLUMN room TEXT DEFAULT '689'`); } catch(e) {}
+  try { db.run(`ALTER TABLE messages ADD COLUMN thumb_url TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS rooms (
