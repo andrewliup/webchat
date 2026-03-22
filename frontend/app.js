@@ -127,11 +127,27 @@ function jumpToMsg(id) {
 
 function scrollToLastRead() {
   const area = document.getElementById('messagesArea');
-  if (state.unreadCount > 0 && state.firstUnreadId) {
-    const el = area.querySelector(`[data-id="${state.firstUnreadId}"]`);
-    if (el) { el.scrollIntoView({ block: 'start' }); return; }
-  }
-  area.scrollTop = area.scrollHeight;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (state.unreadCount > 0 && state.firstUnreadId) {
+        const el = area.querySelector(`[data-id="${state.firstUnreadId}"]`);
+        if (el) {
+          el.scrollIntoView({ block: 'start' });
+          // Re-anchor after any images above finish loading (they expand and push position down)
+          area.querySelectorAll('img').forEach(img => {
+            if (!img.complete) {
+              img.addEventListener('load', () => {
+                const target = area.querySelector(`[data-id="${state.firstUnreadId}"]`);
+                if (target) target.scrollIntoView({ block: 'start' });
+              }, { once: true });
+            }
+          });
+          return;
+        }
+      }
+      scrollInstant(area);
+    });
+  });
 }
 
 function updateUnreadBadge() {
@@ -413,22 +429,6 @@ function scrollInstant(area) {
   area.style.scrollBehavior = 'auto';
   area.scrollTop = area.scrollHeight + 9999;
   area.style.scrollBehavior = '';
-}
-
-function scrollToLastRead() {
-  const area = document.getElementById('messagesArea');
-  if (!state.lastReadId || state.unreadCount === 0) {
-    requestAnimationFrame(() => { requestAnimationFrame(() => { scrollInstant(area); }); });
-    return;
-  }
-  // Has unread — scroll so last-read message is at top, unread messages visible below
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-id="${state.lastReadId}"]`);
-      if (el) el.scrollIntoView({ block: 'start' });
-      else scrollInstant(area);
-    });
-  });
 }
 
 // ── SOCKET.IO ──
