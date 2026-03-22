@@ -188,6 +188,8 @@ function appendMessage(msg) {
   const idx  = msgs.findIndex(m => m.id === msg.id);
   if (idx === -1) { renderMessages(); return; }
   const frag = document.createRange().createContextualFragment(buildMsgRowHtml(msg, msgs, idx));
+  // Add fade-in class to the new msg-row node before inserting
+  frag.querySelectorAll('.msg-row').forEach(el => el.classList.add('new-msg'));
   area.appendChild(frag);
   updateUnreadBadge();
 }
@@ -441,7 +443,7 @@ function connectSocket() {
 
     appendMessage(msg);
     if (atBottom || msg.sender_id === state.me.id) {
-      area.scrollTop = area.scrollHeight;
+      requestAnimationFrame(() => { area.scrollTop = area.scrollHeight; });
     }
   });
 
