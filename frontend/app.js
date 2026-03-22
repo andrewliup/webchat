@@ -632,10 +632,11 @@ document.getElementById('messagesArea').addEventListener('pointerdown', e => {
   state._longPressFired = false;
   state._longPressTimer = setTimeout(() => {
     state._longPressFired = true;
+    window.getSelection()?.removeAllRanges();
     showCtxMenu(e.clientX, e.clientY, bubble);
   }, 600);
 });
-document.getElementById('messagesArea').addEventListener('pointerup', () => {
+document.getElementById('messagesArea').addEventListener('pointermove', () => {
   clearTimeout(state._longPressTimer);
 });
 document.addEventListener('click', () => {
@@ -652,11 +653,12 @@ function showCtxMenu(x, y, bubble) {
   if (!msg) return;
   state.ctxTarget = msg;
   const isSelf  = msg.sender_id === state.me.id;
-  const canEdit = isSelf && msg.type === 'text' && !msg.is_recalled && Date.now() - new Date(msg.sent_at).getTime() < 600000;
+  const canEdit   = isSelf && msg.type === 'text' && !msg.is_recalled && Date.now() - new Date(msg.sent_at).getTime() < 600000;
+  const canRecall = isSelf && !msg.is_recalled && Date.now() - new Date(msg.sent_at).getTime() < 600000;
   document.getElementById('ctxCopy').style.display   = msg.type === 'text' && !msg.is_recalled ? 'inline-flex' : 'none';
   document.getElementById('ctxQuote').style.display  = !msg.is_recalled && !msg.is_deleted ? 'inline-flex' : 'none';
   document.getElementById('ctxEdit').style.display   = canEdit ? 'inline-flex' : 'none';
-  document.getElementById('ctxRecall').style.display = isSelf && !msg.is_recalled ? 'inline-flex' : 'none';
+  document.getElementById('ctxRecall').style.display = canRecall ? 'inline-flex' : 'none';
   document.getElementById('ctxDelete').style.display = isSelf ? 'inline-flex' : 'none';
   document.getElementById('ctxClear').style.display  = 'inline-flex';
   const menu = document.getElementById('ctxMenu');
@@ -668,8 +670,23 @@ function showCtxMenu(x, y, bubble) {
 }
 
 document.getElementById('ctxCopy').addEventListener('click', () => {
-  if (state.ctxTarget) navigator.clipboard?.writeText(state.ctxTarget.content).catch(() => {});
+  if (!state.ctxTarget) return;
+  const text = state.ctxTarget.content;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
 });
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
 document.getElementById('ctxQuote').addEventListener('click', () => {
   if (!state.ctxTarget) return;
   state.quoteMsg = state.ctxTarget;

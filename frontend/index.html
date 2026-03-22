@@ -75,7 +75,8 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
   background:var(--accent);color:#fff}
 .msg-row.self .msg-avatar{background:#7c4dff}
 .bubble{max-width:72vw;padding:7px 10px 4px;border-radius:8px;
-  background:var(--bg-other);box-shadow:var(--shadow);position:relative;word-break:break-word}
+  background:var(--bg-other);box-shadow:var(--shadow);position:relative;word-break:break-word;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .msg-row.self .bubble{background:var(--bg-self)}
 .bubble-text{font-size:15px;line-height:1.4}
 .bubble-meta{display:flex;align-items:center;justify-content:flex-end;gap:4px;
@@ -167,7 +168,7 @@ input,textarea{font:inherit;color:inherit;background:var(--inp);border:none;outl
 /* CONTEXT MENU */
 .ctx-menu{position:fixed;background:var(--bg-card);border-radius:14px;
   box-shadow:0 4px 20px rgba(0,0,0,.25);z-index:200;display:none;
-  padding:6px 4px;max-width:calc(100vw - 24px)}
+  padding:6px 4px;max-width:calc(100vw - 24px);user-select:none;-webkit-user-select:none}
 .ctx-menu.active{display:flex;flex-direction:row;flex-wrap:wrap;gap:0}
 .ctx-item{display:inline-flex !important;flex-direction:column !important;align-items:center;gap:4px;
   padding:10px 10px;font-size:11px;color:var(--text);
