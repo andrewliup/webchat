@@ -89,7 +89,7 @@ function renderMessages() {
     </div>`;
   });
 
-  area.innerHTML = badge.outerHTML + html;
+  area.innerHTML = html + badge.outerHTML;
   updateUnreadBadge();
 }
 
@@ -205,7 +205,9 @@ function appendMessage(msg) {
   if (idx === -1) { renderMessages(); return; }
   const frag = document.createRange().createContextualFragment(buildMsgRowHtml(msg, msgs, idx));
   frag.querySelectorAll('.msg-row, .date-sep').forEach(el => el.classList.add('new-msg'));
-  area.appendChild(frag);
+  const badge = area.querySelector('#unreadBadge');
+  if (badge) area.insertBefore(frag, badge);
+  else area.appendChild(frag);
   updateUnreadBadge();
 }
 
@@ -666,6 +668,7 @@ async function uploadAndSend(file, type) {
 
 // Jump to bottom, replacing loaded messages with latest batch + new message
 async function jumpToPresent(newMsg) {
+  const area = document.getElementById('messagesArea');
   if (state.hasMoreNewer) {
     // There are unread messages not in memory — fetch latest batch from server
     const res  = await api('/api/messages?limit=50');
@@ -684,23 +687,26 @@ async function jumpToPresent(newMsg) {
     state.hasMoreNewer  = false;
     state.unreadCount   = 0;
     state.firstUnreadId = null;
+    renderMessages();
+    scrollInstant(area);
   } else {
-    // Already have all messages — just append if not present
+    // Already have all messages — just append without destroying the DOM
     if (newMsg && !state.messages.find(m => m.id === newMsg.id)) {
       state.messages.push(newMsg);
       state.newestLoadedId = newMsg.id;
     }
     state.unreadCount   = 0;
     state.firstUnreadId = null;
+    appendMessage(newMsg);
+    area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+    // Re-scroll after image finishes loading
+    if (newMsg && (newMsg.type === 'image' || newMsg.type === 'video')) {
+      const img = area.querySelector(`.msg-row[data-id="${newMsg.id}"] img`);
+      if (img && !img.complete) {
+        img.addEventListener('load', () => area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' }), { once: true });
+      }
+    }
   }
-  renderMessages();
-  scrollToBottom();
-  // Re-scroll after images in the last message finish loading
-  const area = document.getElementById('messagesArea');
-  area.querySelectorAll('img, video').forEach(el => {
-    el.addEventListener('load', () => { scrollInstant(area); }, { once: true });
-    el.addEventListener('loadedmetadata', () => { scrollInstant(area); }, { once: true });
-  });
 }
 
 function scrollToBottom() {
