@@ -735,7 +735,7 @@ document.getElementById('messagesArea').addEventListener('contextmenu', e => {
   e.preventDefault();
   if (e.pointerType === 'touch' || state._longPressFired) return;
   const bubble = e.target.closest('.bubble');
-  if (bubble) showCtxMenu(e.clientX, e.clientY, bubble);
+  if (bubble) showCtxMenu(bubble);
 });
 // Bug 2: always clear any pending timer and reset flag at the start of a new press
 document.getElementById('messagesArea').addEventListener('pointerdown', e => {
@@ -746,7 +746,7 @@ document.getElementById('messagesArea').addEventListener('pointerdown', e => {
   state._longPressTimer = setTimeout(() => {
     state._longPressFired = true;
     window.getSelection()?.removeAllRanges();
-    showCtxMenu(e.clientX, e.clientY, bubble);
+    showCtxMenu(bubble);
   }, 600);
 });
 // Cancel timer on release or cancel — prevents menu showing after a quick tap
@@ -759,13 +759,13 @@ document.addEventListener('pointerdown', e => {
   if (!e.target.closest('#attachMenu')) document.getElementById('attachMenu').classList.remove('active');
 });
 
-function showCtxMenu(x, y, bubble) {
+function showCtxMenu(bubble) {
   if (!bubble) return;
   const id  = parseInt(bubble.dataset.id);
   const msg = state.messages.find(m => m.id === id);
   if (!msg) return;
   state.ctxTarget = msg;
-  const isSelf  = msg.sender_id === state.me.id;
+  const isSelf    = msg.sender_id === state.me.id;
   const canEdit   = isSelf && msg.type === 'text' && !msg.is_recalled && Date.now() - new Date(msg.sent_at).getTime() < 600000;
   const canRecall = isSelf && !msg.is_recalled && Date.now() - new Date(msg.sent_at).getTime() < 600000;
   document.getElementById('ctxCopy').style.display   = msg.type === 'text' && !msg.is_recalled ? 'inline-flex' : 'none';
@@ -774,12 +774,38 @@ function showCtxMenu(x, y, bubble) {
   document.getElementById('ctxRecall').style.display = canRecall ? 'inline-flex' : 'none';
   document.getElementById('ctxDelete').style.display = isSelf ? 'inline-flex' : 'none';
   document.getElementById('ctxClear').style.display  = 'inline-flex';
+
   const menu = document.getElementById('ctxMenu');
   menu.classList.add('active');
   const mw = menu.offsetWidth  || 300;
   const mh = menu.offsetHeight || 120;
-  menu.style.left = Math.max(12, Math.min(x, window.innerWidth  - mw - 12)) + 'px';
-  menu.style.top  = Math.max(12, Math.min(y, window.innerHeight - mh - 12)) + 'px';
+  const pad = 8;
+
+  // Position relative to the bubble, not the exact touch point
+  const rect = bubble.getBoundingClientRect();
+  const spaceAbove = rect.top;
+  const spaceBelow = window.innerHeight - rect.bottom;
+
+  // Prefer above the bubble; fall back to below if not enough space
+  let top;
+  if (spaceAbove >= mh + pad) {
+    top = rect.top - mh - pad;
+  } else if (spaceBelow >= mh + pad) {
+    top = rect.bottom + pad;
+  } else {
+    // Not enough room either way — center vertically over the bubble
+    top = rect.top + (rect.height - mh) / 2;
+  }
+
+  // Horizontal: align with the bubble, clamped to screen
+  let left = isSelf
+    ? rect.right - mw           // right-align for own messages
+    : rect.left;                // left-align for partner messages
+  left = Math.max(pad, Math.min(left, window.innerWidth - mw - pad));
+  top  = Math.max(pad, Math.min(top,  window.innerHeight - mh - pad));
+
+  menu.style.left = left + 'px';
+  menu.style.top  = top  + 'px';
 }
 
 document.getElementById('ctxCopy').addEventListener('click', () => {
