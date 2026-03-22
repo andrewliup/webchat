@@ -854,7 +854,7 @@ document.getElementById('avatarInput').addEventListener('change', async (e) => {
   if (!file) return;
   const fd = new FormData();
   fd.append('file', file);
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd });
   if (res.ok) {
     const data = await res.json();
     state.me.avatar_url = data.url;

@@ -18,7 +18,11 @@
     "compose:logs": "docker-compose logs -f",
     "compose:restart": "docker-compose restart"
   },
-  "keywords": ["chat", "websocket", "real-time"],
+  "keywords": [
+    "chat",
+    "websocket",
+    "real-time"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
@@ -32,6 +36,8 @@
     "express": "^4.21.2",
     "express-session": "^1.18.1",
     "multer": "^1.4.5-lts.1",
-    "socket.io": "^4.8.3"
+    "sharp": "^0.34.5",
+    "socket.io": "^4.8.3",
+    "sql.js": "^1.14.1"
   }
 }

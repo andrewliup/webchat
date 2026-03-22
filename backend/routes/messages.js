@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const sharp = require('sharp');
 const db = require('../db');
 const { run, runInsert, get, all } = db;
 
@@ -274,6 +275,30 @@ router.put('/messages/:id/read', requireAuth, (req, res) => {
 
   req.app.get('io').emit('message_read', { userId, messageId });
   res.json({ ok: true });
+});
+
+// POST /api/upload/avatar — upload and resize profile picture to 128×128 WebP
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/^image\//.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Images only'));
+  }
+});
+router.post('/upload/avatar', requireAuth, avatarUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const filename = `avatar-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+    const outPath = path.join(__dirname, '../uploads', filename);
+    await sharp(req.file.buffer)
+      .resize(128, 128, { fit: 'cover', position: 'centre' })
+      .webp({ quality: 80 })
+      .toFile(outPath);
+    res.json({ url: `/uploads/${filename}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Image processing failed' });
+  }
 });
 
 // POST /api/upload
