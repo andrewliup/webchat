@@ -38,7 +38,7 @@ function fmtSep(ts) {
   if (utc8Time >= yestStart)   return 'Yesterday ' + fmtTime(ts);
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const weekStart = todayStart - utc8Now.getUTCDay() * 86400000;
-  if (utc8Time >= weekStart)   return days[utc8Now.getUTCDay()] + ' ' + fmtTime(ts);
+  if (utc8Time >= weekStart)   return days[new Date(utc8Time).getUTCDay()] + ' ' + fmtTime(ts);
   return new Date(utc8Time).toLocaleDateString('en-US', { timeZone: 'UTC' }) + ' ' + fmtTime(ts);
 }
 function needsSep(msgs, idx) {
@@ -394,10 +394,13 @@ async function loadNewerMessages() {
   });
 
   if (msgs.length) {
+    const area = document.getElementById('messagesArea');
+    const savedScrollTop = area.scrollTop;
     state.messages = [...state.messages, ...msgs];
     state.newestLoadedId = msgs[msgs.length - 1].id;
     state.hasMoreNewer = msgs.length >= 50;
     renderMessages();
+    area.scrollTop = savedScrollTop;
   } else {
     state.hasMoreNewer = false;
   }
@@ -989,4 +992,5 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   const idx = state.users.findIndex(u => u.id === state.me.id);
   if (idx !== -1) state.users[idx] = { ...state.users[idx], ...state.me };
   renderMessages();
+  scrollToBottom();
 });
