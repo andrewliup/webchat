@@ -200,6 +200,8 @@ function buildMsgRowHtml(m, msgs, idx) {
 // Bug 3: fade-in both the separator and the message row together
 function appendMessage(msg) {
   const area = document.getElementById('messagesArea');
+  // DOM-level dedup: covers race where socket fires before HTTP response returns
+  if (area.querySelector(`.msg-row[data-id="${msg.id}"]`)) return;
   const msgs = state.messages.filter(m => !m.is_deleted);
   const idx  = msgs.findIndex(m => m.id === msg.id);
   if (idx === -1) { renderMessages(); return; }
