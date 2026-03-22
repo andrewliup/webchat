@@ -91,7 +91,6 @@ function renderMessages() {
 
   area.innerHTML = badge.outerHTML + html;
   updateUnreadBadge();
-  scrollToLastRead();
 }
 
 function renderBubbleContent(m) {
@@ -348,7 +347,7 @@ async function loadMessages() {
   state.hasMoreNewer = newerCount >= 50;
 
   renderMessages();
-  setTimeout(() => scrollToLastRead(), 150);
+  scrollToLastRead();
 }
 
 async function loadOlderMessages() {
