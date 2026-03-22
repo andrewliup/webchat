@@ -4,8 +4,11 @@ const multer = require('multer');
 const path = require('path');
 const sharp = require('sharp');
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegStatic = require('ffmpeg-static');
-ffmpeg.setFfmpegPath(ffmpegStatic);
+// Use bundled ffmpeg-static binary if available, otherwise fall back to system ffmpeg
+try {
+  const ffmpegStatic = require('ffmpeg-static');
+  if (ffmpegStatic) ffmpeg.setFfmpegPath(ffmpegStatic);
+} catch (e) { /* use system ffmpeg */ }
 const db = require('../db');
 const { run, runInsert, get, all } = db;
 

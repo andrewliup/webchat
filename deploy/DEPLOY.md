@@ -5,20 +5,29 @@
 - Node.js 18+
 - Nginx
 - PM2 (`npm install -g pm2`)
-- ffmpeg (for video thumbnails): `apt install ffmpeg`
+- ffmpeg — **must be installed system-wide** for video thumbnails:
+  ```bash
+  apt install ffmpeg        # Ubuntu/Debian
+  yum install ffmpeg        # CentOS/RHEL
+  ```
 
 ---
 
 ## First-time Setup
 
-### 1. Clone and install
+### 1. Install ffmpeg (required before npm install)
+```bash
+apt install ffmpeg
+```
+
+### 2. Clone and install
 ```bash
 git clone https://github.com/andrewliup/webchat.git /var/www/webchat
 cd /var/www/webchat
-npm install --ignore-scripts
+npm install
 ```
 
-> `--ignore-scripts` skips native module rebuilds. All packages ship prebuilt binaries.
+> `ffmpeg-static` is an optional dependency — if the npm binary download fails, the app automatically falls back to the system ffmpeg installed above.
 
 ### 2. Run one-time avatar migration (if upgrading from older version)
 ```bash
